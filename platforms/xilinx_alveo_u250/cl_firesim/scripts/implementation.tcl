@@ -2,21 +2,30 @@ set impl_run [get_runs impl_1]
 
 reset_runs ${impl_run}
 
-set_property -dict [ list \
+set impl_props [list \
   STEPS.OPT_DESIGN.IS_ENABLED $opt \
-  STEPS.OPT_DESIGN.DIRECTIVE $opt_directive \
-  {STEPS.OPT_DESIGN.MORE OPTIONS} "$opt_options" \
-  STEPS.PLACE_DESIGN.DIRECTIVE $place_directive \
-  {STEPS.PLACE_DESIGN.MORE OPTIONS} "$place_options" \
   STEPS.PHYS_OPT_DESIGN.IS_ENABLED $phys_opt \
-  STEPS.PHYS_OPT_DESIGN.DIRECTIVE $phys_directive \
-  {STEPS.PHYS_OPT_DESIGN.MORE OPTIONS} "$phys_options" \
-  STEPS.ROUTE_DESIGN.DIRECTIVE $route_directive \
-  {STEPS.ROUTE_DESIGN.MORE OPTIONS} "$route_options" \
   STEPS.POST_ROUTE_PHYS_OPT_DESIGN.IS_ENABLED $route_phys_opt \
+]
+
+foreach {prop value} [list \
+  STEPS.OPT_DESIGN.DIRECTIVE $opt_directive \
+  {STEPS.OPT_DESIGN.MORE OPTIONS} $opt_options \
+  STEPS.PLACE_DESIGN.DIRECTIVE $place_directive \
+  {STEPS.PLACE_DESIGN.MORE OPTIONS} $place_options \
+  STEPS.PHYS_OPT_DESIGN.DIRECTIVE $phys_directive \
+  {STEPS.PHYS_OPT_DESIGN.MORE OPTIONS} $phys_options \
+  STEPS.ROUTE_DESIGN.DIRECTIVE $route_directive \
+  {STEPS.ROUTE_DESIGN.MORE OPTIONS} $route_options \
   STEPS.POST_ROUTE_PHYS_OPT_DESIGN.DIRECTIVE $post_phys_directive \
-  {STEPS.POST_ROUTE_PHYS_OPT_DESIGN.MORE OPTIONS} "$post_phys_options" \
-] ${impl_run}
+  {STEPS.POST_ROUTE_PHYS_OPT_DESIGN.MORE OPTIONS} $post_phys_options \
+] {
+  if {$value ne ""} {
+    lappend impl_props $prop $value
+  }
+}
+
+set_property -dict $impl_props ${impl_run}
 
 if {$route_phys_opt} {
   set run_to_step {phys_opt_design (Post-Route)}

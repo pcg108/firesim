@@ -2,7 +2,7 @@
 
 package midas.widgets
 
-import freechips.rocketchip.amba.axi4.AXI4OutwardNode
+import freechips.rocketchip.amba.axi4.{AXI4OutwardNode, AXI4SlaveNode}
 import freechips.rocketchip.diplomacy.{AddressSet, TransferSizes}
 
 /** Constrains the "virtual" memory region as seen by Bridge.
@@ -55,6 +55,21 @@ trait UsesHostDRAM extends HostDramHeaderConsts {
     * explanation.
     */
   def memorySlaveConstraints: MemorySlaveConstraints
+}
+
+/** A BridgeModule mixin indicating it exposes CPU-managed, XDMA-addressable BRAMs.
+  *
+  * Unlike [[UsesHostDRAM]], this does not allocate FPGA-attached DRAM. It
+  * exposes bridge-local memories on the same CPU-managed AXI4 fabric used by
+  * bridge streams.
+  */
+trait UsesCPUManagedBRAM {
+  self: Widget =>
+
+  def bramSlaveNode: AXI4SlaveNode
+  def bramAddress:   Seq[AddressSet]
+  def bramBase:      BigInt
+  def bramSize:      BigInt
 }
 
 private[midas] object BytesOfDRAMRequired {

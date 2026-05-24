@@ -86,6 +86,13 @@ class CPUManagedStreamEngine(p: Parameters, val params: StreamEngineParameters) 
 
   val axiBeatBytes     = cpuManagedAXI4params.dataBits / 8
   val bufferWidthBytes = BridgeStreamConstants.streamWidthBits / 8
+  private val streamParamCount = math.max(params.toCPUParams.size, params.fromCPUParams.size)
+  private val maxStreamDepth = (params.toCPUParams.map(_.fpgaBufferDepth) ++ params.fromCPUParams.map(_.fpgaBufferDepth))
+    .reduceOption(_ max _)
+    .getOrElse(1)
+  private val streamAddressSpaceBits = log2Ceil(bufferWidthBytes * maxStreamDepth)
+  val cpuManagedAddressBytes =
+    BigInt(1) << log2Ceil(BigInt(math.max(1, streamParamCount)) * (BigInt(1) << streamAddressSpaceBits))
 
   val cpuManagedAXI4NodeOpt = Some(
     AXI4SlaveNode(
@@ -93,7 +100,7 @@ class CPUManagedStreamEngine(p: Parameters, val params: StreamEngineParameters) 
         AXI4SlavePortParameters(
           slaves    = Seq(
             AXI4SlaveParameters(
-              address       = Seq(AddressSet(0, (BigInt(1) << cpuManagedAXI4params.addrBits) - 1)),
+              address       = Seq(AddressSet(0, cpuManagedAddressBytes - 1)),
               resources     = (new MemoryDevice).reg,
               regionType    = RegionType.UNCACHED, // cacheable
               executable    = false,
@@ -280,10 +287,8 @@ class CPUManagedStreamEngine(p: Parameters, val params: StreamEngineParameters) 
       // fractured into multiple, smaller AXI4 transactions (<= 4K in size), it
       // is simplest to maintain the illusion that each stream is granted an
       // address range at least as large as the largest DMA access.
-      def streamASBits = log2Ceil(bufferWidthBytes * streamParameters.map(_.fpgaBufferDepth).max)
-
       for (((port, params), idx) <- streamPorts.zip(streamParameters).zipWithIndex) yield {
-        elaborator(port, params, idx, streamASBits)
+        elaborator(port, params, idx, streamAddressSpaceBits)
       }
     }
 

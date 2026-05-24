@@ -309,6 +309,10 @@ class FPGATop(implicit p: Parameters) extends LazyModule with HasWidgets {
     .collect { case b: StreamToPeerFPGA => b }
   val hasToFPGAStreams             = bridgesWithToPeerFPGAStreams.nonEmpty
 
+  val bridgesWithCPUManagedBRAM = bridgeModuleMap.values
+    .collect { case b: UsesCPUManagedBRAM => b }
+  val hasCPUManagedBRAM         = bridgesWithCPUManagedBRAM.nonEmpty
+
   def printStreamSummary(streams: Iterable[StreamParameters], header: String): Unit = {
     val summaries = streams.toList match {
       case Nil => "None" :: Nil
@@ -336,8 +340,8 @@ class FPGATop(implicit p: Parameters) extends LazyModule with HasWidgets {
 
   val toPeerFPGAStreamParams = bridgesWithToPeerFPGAStreams.map { _.streamSourceParams } // for p2p
 
-  val (streamingEngine, cpuManagedAXI4NodeTuple) =
-    if (toCPUStreamParams.isEmpty && fromCPUStreamParams.isEmpty) { (None, None) }
+  val streamingEngine =
+    if (toCPUStreamParams.isEmpty && fromCPUStreamParams.isEmpty) { None }
     else {
       // CPU Streaming Engine (AWS PCIS)
       val streamEngineParams = StreamEngineParameters(toCPUStreamParams.toSeq, fromCPUStreamParams.toSeq)
@@ -347,8 +351,38 @@ class FPGATop(implicit p: Parameters) extends LazyModule with HasWidgets {
         streamingEngine.cpuManagedAXI4NodeOpt.isEmpty || p(CPUManagedAXI4Key).nonEmpty,
         "Selected StreamEngine uses the CPU-managed AXI4 interface, but it is not available on this platform.",
       )
+      Some(streamingEngine)
+    }
 
-      val cpuManagedAXI4NodeTuple = p(CPUManagedAXI4Key).map { params =>
+  require(
+    !hasCPUManagedBRAM || p(CPUManagedAXI4Key).nonEmpty,
+    "A bridge exposes CPU-managed BRAMs, but the CPU-managed AXI4 interface is not available on this platform.",
+  )
+
+  private def addressRangesOverlap(lhs: AddressSet, rhs: AddressSet): Boolean =
+    lhs.base <= rhs.max && rhs.base <= lhs.max
+
+  private val cpuManagedStreamAddress = streamingEngine match {
+    case Some(e: CPUManagedStreamEngine) => Seq(AddressSet(0, e.cpuManagedAddressBytes - 1))
+    case Some(_)                         => Seq.empty
+    case None                            => Seq.empty
+  }
+
+  for {
+    streamAddr <- cpuManagedStreamAddress
+    bram       <- bridgesWithCPUManagedBRAM
+    bramAddr   <- bram.bramAddress
+  } {
+    require(
+      !addressRangesOverlap(streamAddr, bramAddr),
+      s"CPU-managed stream address set ${streamAddr} overlaps CPU-managed BRAM address set ${bramAddr} for ${bram.getWName}.",
+    )
+  }
+
+  val cpuManagedAXI4NodeTuple =
+    if (streamingEngine.flatMap(_.cpuManagedAXI4NodeOpt).isEmpty && bridgesWithCPUManagedBRAM.isEmpty) { None }
+    else {
+      p(CPUManagedAXI4Key).map { params =>
         val node = AXI4MasterNode(
           Seq(
             AXI4MasterPortParameters(
@@ -364,12 +398,18 @@ class FPGATop(implicit p: Parameters) extends LazyModule with HasWidgets {
             )
           )
         )
-        streamingEngine.cpuManagedAXI4NodeOpt.foreach {
-          _ := AXI4Buffer() := node
+
+        val xbar = AXI4Xbar()
+        xbar := AXI4Buffer() := node
+
+        streamingEngine.flatMap(_.cpuManagedAXI4NodeOpt).foreach {
+          _ := AXI4Buffer() := xbar
+        }
+        bridgesWithCPUManagedBRAM.foreach { bridge =>
+          bridge.bramSlaveNode := AXI4Buffer() := xbar
         }
         (node, params)
       }
-      (Some(streamingEngine), cpuManagedAXI4NodeTuple)
     }
 
   val (fpgaStreamingEngine, fpgaManagedAXI4NodeTuple) =

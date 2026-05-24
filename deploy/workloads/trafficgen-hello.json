@@ -1,0 +1,9 @@
+{
+	"benchmark_name": "trafficgen-hello",
+	"common_simulation_outputs": [
+		"uartlog",
+		"metasim_stderr.out"
+	],
+	"common_bootbinary": "../../../../../software/firemarshal/example-workloads/trafficgen-hello/hello",
+	"common_rootfs": "../../../../../software/firemarshal/boards/default/installers/firesim/dummy.rootfs"
+}
