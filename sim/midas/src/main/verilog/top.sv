@@ -217,7 +217,15 @@ module emul(
     if ($value$plusargs("waveformfile=%s", waveformfile))
     begin
       $dumpfile(waveformfile);
-      $dumpvars(0, FPGATop);
+`ifdef NARROW_WAVEFORM
+      $dumpvars(99, FPGATop);
+`else
+      if ($test$plusargs("narrow-waveform")) begin
+        $dumpvars(99, FPGATop);
+      end else begin
+        $dumpvars(0, FPGATop);
+      end
+`endif
     end
 
 `ifdef FSDB

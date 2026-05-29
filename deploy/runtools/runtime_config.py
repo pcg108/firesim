@@ -699,11 +699,24 @@ class RuntimeHWConfig:
             f"Building {self.driver_type_message} driver for {str(self.get_deployquintuplet_for_config())}"
         )
 
+        narrow_waveform_requested = (
+            self.get_driver_build_target() == "verilator-debug"
+            and (
+                os.environ.get("VERILATOR_NARROW_WAVEFORM", "").lower()
+                in ["1", "yes", "true"]
+                or "+narrow-waveform"
+                in getattr(self, "metasimulation_only_plusargs", "")
+            )
+        )
+        narrow_waveform_make_arg = (
+            " VERILATOR_NARROW_WAVEFORM=1" if narrow_waveform_requested else ""
+        )
+
         deploy_dir = get_deploy_dir()
         with InfoStreamLogger("stdout"), prefix(f"cd {deploy_dir}/../"), prefix(
             create_export_string({"RISCV", "PATH", "LD_LIBRARY_PATH"})
         ), prefix("source sourceme-manager.sh --skip-ssh-setup"), prefix("cd sim/"):
-            driverbuildcommand = f"make PLATFORM={self.get_platform()} TARGET_PROJECT={target_project} {extra_target_project_make_args(target_project, target_project_makefrag, deploy_dir)} DESIGN={design} TARGET_CONFIG={target_config} PLATFORM_CONFIG={platform_config} {self.get_driver_build_target()}"
+            driverbuildcommand = f"make PLATFORM={self.get_platform()} TARGET_PROJECT={target_project} {extra_target_project_make_args(target_project, target_project_makefrag, deploy_dir)} DESIGN={design} TARGET_CONFIG={target_config} PLATFORM_CONFIG={platform_config}{narrow_waveform_make_arg} {self.get_driver_build_target()}"
             buildresult = run(driverbuildcommand)
             self.handle_failure(
                 buildresult, "driver build", "firesim/sim", driverbuildcommand
@@ -883,6 +896,12 @@ class RuntimeBuildRecipeConfig(RuntimeHWConfig):
             )
         if self.metasim_host_simulator == "verilator-debug":
             full_extra_plusargs += " +waveformfile=metasim_waveform.vcd "
+            if os.environ.get("FIRESIM_NARROW_WAVEFORM", "").lower() in [
+                "1",
+                "yes",
+                "true",
+            ]:
+                full_extra_plusargs += " +narrow-waveform "
         if self.metasim_host_simulator == "vcs-debug":
             full_extra_plusargs += " +fsdbfile=metasim_waveform.fsdb "
         # TODO: spike-dasm support

@@ -22,6 +22,12 @@
 
 VERILATOR ?= verilator --main --timing --cc --exe
 verilator_v := $(emul_v) $(sim_wrapper_v)
+verilator_narrow_waveform_enabled := $(filter 1 yes true,$(VERILATOR_NARROW_WAVEFORM))
+verilator_debug_design_v := $(GEN_DIR)/$(GEN_FILE_BASENAME)-trace-filtered.sv
+verilator_debug_v := $(if $(verilator_narrow_waveform_enabled),$(patsubst $(DESIGN_V),$(verilator_debug_design_v),$(verilator_v)),$(verilator_v))
+verilator_debug_patch_deps := $(if $(verilator_narrow_waveform_enabled),$(midas_dir)/rtlsim/patch-verilator-dumpvars.pl,)
+verilator_debug_mode := $(if $(verilator_narrow_waveform_enabled),on,off)
+verilator_debug_mode_stamp := $(GEN_DIR)/.V$(DRIVER_NAME)-debug-narrow-waveform-$(verilator_debug_mode)
 verilator_cc := $(emul_cc) $(sim_harness)
 
 override VERILATOR_FLAGS := \
@@ -50,6 +56,12 @@ model_header_debug = $(model_dir_debug)/V$(TB).h
 
 model_mk = V$(TB).mk
 
+$(verilator_debug_design_v): $(DESIGN_V) $(midas_dir)/rtlsim/filter-verilator-trace.pl
+	perl $(midas_dir)/rtlsim/filter-verilator-trace.pl < $< > $@
+
+$(verilator_debug_mode_stamp):
+	touch $@
+
 $(OUT_DIR)/V$(DRIVER_NAME): $(verilator_v) $(verilator_cc) $(emul_h) $(verilator_conf)
 	mkdir -p $(OUT_DIR)
 	rm -rf $(model_dir)
@@ -57,9 +69,10 @@ $(OUT_DIR)/V$(DRIVER_NAME): $(verilator_v) $(verilator_cc) $(emul_h) $(verilator
 		-o $@ $(verilator_v) $(verilator_conf) $(verilator_cc)
 	$(MAKE) -C $(model_dir) -f $(model_mk)
 
-$(OUT_DIR)/V$(DRIVER_NAME)-debug: $(verilator_v) $(verilator_cc) $(emul_h) $(verilator_conf)
+$(OUT_DIR)/V$(DRIVER_NAME)-debug: $(verilator_debug_v) $(verilator_cc) $(emul_h) $(verilator_conf) $(verilator_debug_patch_deps) $(verilator_debug_mode_stamp)
 	mkdir -p $(OUT_DIR)
 	rm -rf $(model_dir_debug)
-	$(VERILATOR) $(VERILATOR_FLAGS) --trace +define+DEBUG -Mdir $(model_dir_debug) \
-		-o $@ $(verilator_v) $(verilator_conf) $(verilator_cc)
+	$(VERILATOR) $(VERILATOR_FLAGS) --trace +define+DEBUG $(if $(verilator_narrow_waveform_enabled),+define+NARROW_WAVEFORM,) -Mdir $(model_dir_debug) \
+		-o $(OUT_DIR)/V$(DRIVER_NAME)-debug $(verilator_debug_v) $(verilator_conf) $(verilator_cc)
+	$(if $(verilator_narrow_waveform_enabled),perl $(midas_dir)/rtlsim/patch-verilator-dumpvars.pl $(model_dir_debug)/V$(TB)__Syms.cpp,)
 	$(MAKE) -C $(model_dir_debug) -f $(model_mk)
