@@ -1,9 +1,12 @@
 # write reports
 
-open_run impl_1
+open_run ${impl_run}
 
 # Report final timing
 report_timing_summary -file ${rpt_dir}/final_timing_summary.rpt
+
+# Report routing after all implementation and post-route optimization steps.
+report_route_status -file ${rpt_dir}/final_route_status.rpt
 
 # Report utilization
 report_utilization -hierarchical -hierarchical_percentages -file ${rpt_dir}/final_utilization.rpt

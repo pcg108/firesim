@@ -3,12 +3,23 @@
 #include "systematic_scheduler.h"
 
 #include <cassert>
+#include <charconv>
+#include <stdexcept>
+#include <system_error>
 
 systematic_scheduler_t::systematic_scheduler_t(
     const std::vector<std::string> &args) {
   for (const auto &arg : args) {
     if (arg.find("+max-cycles=") == 0) {
-      max_cycles = atoi(arg.c_str() + 12);
+      const char *begin = arg.data() + 12;
+      const char *end = arg.data() + arg.size();
+      uint64_t parsed = 0;
+      const auto result = std::from_chars(begin, end, parsed, 10);
+      if (result.ec != std::errc{} || result.ptr != end) {
+        throw std::invalid_argument(
+            "Invalid +max-cycles: expected an unsigned 64-bit decimal integer");
+      }
+      max_cycles = parsed;
     }
   }
 }
