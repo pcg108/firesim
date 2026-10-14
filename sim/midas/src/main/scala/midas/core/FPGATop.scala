@@ -309,6 +309,8 @@ class FPGATop(implicit p: Parameters) extends LazyModule with HasWidgets {
     .collect { case b: StreamToPeerFPGA => b }
   val hasToFPGAStreams             = bridgesWithToPeerFPGAStreams.nonEmpty
 
+  // bridges can expose BRAMs via XDMA to the CPU
+  // This is an alternate route to the CPU-managed stream engine, for writing large chunks to BRAM without a stream interface
   val bridgesWithCPUManagedBRAM = bridgeModuleMap.values
     .collect { case b: UsesCPUManagedBRAM => b }
   val hasCPUManagedBRAM         = bridgesWithCPUManagedBRAM.nonEmpty
@@ -368,6 +370,7 @@ class FPGATop(implicit p: Parameters) extends LazyModule with HasWidgets {
     case None                            => Seq.empty
   }
 
+  // ensure that the CPU-managed stream address set does not overlap with any CPU-managed BRAM address set
   for {
     streamAddr <- cpuManagedStreamAddress
     bram       <- bridgesWithCPUManagedBRAM
@@ -402,6 +405,7 @@ class FPGATop(implicit p: Parameters) extends LazyModule with HasWidgets {
         val xbar = AXI4Xbar()
         xbar := AXI4Buffer() := node
 
+        // connect CPU-managed stream and CPU-managed BRAM to the same AXI4 crossbar
         streamingEngine.flatMap(_.cpuManagedAXI4NodeOpt).foreach {
           _ := AXI4Buffer() := xbar
         }

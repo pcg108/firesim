@@ -53,7 +53,7 @@ class F1Shim(implicit p: Parameters) extends PlatformShim {
 
     top.module.ctrl <> io_master
 
-    // Connect the CPU-managed stream engine if the target has one. Otherwise, cap off the connection. (PCIS)
+    // Connect the CPU-managed stream engine (and CPU-managed BRAM) if the target has one. Otherwise, cap off the connection. (PCIS)
     top.module.cpu_managed_axi4 match {
       case None       =>
         io_pcis.aw.ready := false.B
