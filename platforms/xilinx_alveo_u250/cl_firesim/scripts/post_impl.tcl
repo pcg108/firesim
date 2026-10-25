@@ -4,6 +4,8 @@ open_run ${impl_run}
 
 # Report final timing
 report_timing_summary -file ${rpt_dir}/final_timing_summary.rpt
+report_drc -file ${rpt_dir}/final_drc.rpt
+check_timing -verbose -file ${rpt_dir}/final_check_timing.rpt
 
 # Report routing after all implementation and post-route optimization steps.
 report_route_status -file ${rpt_dir}/final_route_status.rpt

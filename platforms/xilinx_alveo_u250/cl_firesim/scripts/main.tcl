@@ -1,3 +1,4 @@
+set_param route.optimizeLeafClkProgDlys false
 set root_dir [pwd]
 set vivado_version [version -short]
 set vivado_version_major [string range $vivado_version 0 3]

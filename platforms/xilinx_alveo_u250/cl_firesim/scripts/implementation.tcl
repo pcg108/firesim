@@ -27,6 +27,8 @@ foreach {prop value} [list \
 
 set_property -dict $impl_props ${impl_run}
 
+set_property STEPS.ROUTE_DESIGN.TCL.PRE ${root_dir}/scripts/l2perf_route_pre.tcl ${impl_run}
+
 if {$route_phys_opt} {
   set run_to_step {phys_opt_design (Post-Route)}
 } else {
@@ -39,15 +41,13 @@ check_progress ${impl_run} "first normal implementation failed"
 set WNS [get_property STATS.WNS ${impl_run}]
 set WHS [get_property STATS.WHS ${impl_run}]
 
-# run idr or ml flow to close timing
+# Stop and preserve reports rather than escalating to IDR/ML recovery.
 if {$WNS < 0 || $WHS < 0} {
-  check_file_exists [set sourceFile ${root_dir}/scripts/implementation_idr_ml/${vivado_version}.tcl]
-  source $sourceFile
-  # expects that $WHS/WNS is re-set
-}
-
-if {$WNS < 0 || $WHS < 0} {
-  puts "ERROR: did not meet timing!"
+  open_run ${impl_run}
+  report_timing_summary -file ${rpt_dir}/failed_timing_summary.rpt
+  report_route_status -file ${rpt_dir}/failed_route_status.rpt
+  close_design
+  puts "ERROR: did not meet timing; stopped without IDR/ML recovery."
   exit 1
 }
 
